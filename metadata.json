@@ -1,0 +1,8 @@
+{
+  "name": "SmartFridge2.0",
+  "description": "An AI-powered fridge scanner and meal planner with live health tracking and voice assistant.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
