@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import InventoryList from './components/InventoryList';
 import GroceryList from './components/GroceryList';
 import FridgeScanner from './components/FridgeScanner';
+import VoiceEntry from './components/VoiceEntry';
 import SmartRecipes from './components/SmartRecipes';
 import ProfileSettings from './components/ProfileSettings'; 
 import { ViewState, Ingredient, DailyPlan, UserProfile, ShoppingItem, IngredientCategory } from './types';
@@ -15,6 +16,7 @@ import { storageService } from './services/storageService';
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [isScanning, setIsScanning] = useState(false);
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   
   // State initialization
@@ -43,9 +45,12 @@ const App: React.FC = () => {
       setIsCloudLoading(true);
       const data = await storageService.loadData();
       if (data.user) setUserProfile(data.user);
-      if (data.inventory.length > 0) setInventory(data.inventory);
+      
+      // Directly set arrays to respect empty states from storage
+      setInventory(data.inventory);
+      setShoppingList(data.shoppingList);
+      
       if (data.plan) setDailyPlan(data.plan);
-      if (data.shoppingList) setShoppingList(data.shoppingList);
       
       setLastSynced(new Date());
       setStorageUsage(storageService.getStorageUsageKB());
@@ -109,9 +114,41 @@ const App: React.FC = () => {
   }, []);
 
   const handleScanComplete = (newIngredients: Ingredient[]) => {
-    setInventory(prev => [...newIngredients, ...prev]);
+    setInventory(prev => {
+      // Intelligent Merging: Update existing items instead of duplicating
+      const existingMap = new Map(prev.map(item => [item.name.toLowerCase(), item]));
+      const nextInventory = [...prev];
+
+      newIngredients.forEach(newItem => {
+        const normalizedName = newItem.name.toLowerCase();
+        
+        if (existingMap.has(normalizedName)) {
+           // Item exists: Update expiry if provided, and category
+           const index = nextInventory.findIndex(i => i.name.toLowerCase() === normalizedName);
+           if (index !== -1) {
+             nextInventory[index] = {
+               ...nextInventory[index],
+               expiryEstimateDays: newItem.expiryEstimateDays, // Update to new scan estimation
+               category: newItem.category, // Correct category if scan is more accurate
+               confidence: Math.max(nextInventory[index].confidence || 0, newItem.confidence || 0)
+             };
+           }
+        } else {
+           // New Item: Add to top
+           nextInventory.unshift(newItem);
+        }
+      });
+      return nextInventory;
+    });
+    
     setIsScanning(false);
     setCurrentView('inventory');
+  };
+
+  const handleVoiceComplete = (newIngredients: Ingredient[]) => {
+    // Re-use scan completion logic for voice to ensure consistency (merging logic)
+    handleScanComplete(newIngredients);
+    setIsVoiceOpen(false);
   };
 
   const handleManualAdd = (item: Omit<Ingredient, 'id'>) => {
@@ -119,7 +156,19 @@ const App: React.FC = () => {
       ...item,
       id: Math.random().toString(36).substring(7),
     };
-    setInventory(prev => [newIngredient, ...prev]);
+    handleScanComplete([newIngredient]); // Use merging logic for manual add too
+  };
+
+  const handleUpdateInventoryItem = (id: string, updates: Partial<Ingredient>) => {
+    setInventory(prev => prev.map(item => 
+      item.id === id ? { ...item, ...updates } : item
+    ));
+  };
+
+  const handleClearInventory = () => {
+    if (window.confirm("Are you sure you want to clear your entire inventory? This action cannot be undone.")) {
+      setInventory([]);
+    }
   };
 
   const handleGeneratePlan = async () => {
@@ -233,6 +282,8 @@ const App: React.FC = () => {
               onAdd={() => setIsScanning(true)}
               onManualAdd={handleManualAdd}
               onToggleAllergen={handleToggleAllergen}
+              onClearAll={handleClearInventory}
+              onUpdate={handleUpdateInventoryItem}
             />
           )}
           
@@ -253,6 +304,7 @@ const App: React.FC = () => {
               onToggle={handleToggleShoppingItem}
               onRemove={handleRemoveShoppingItem}
               onClearChecked={handleClearCheckedShoppingItems}
+              onAdd={(item) => handleAddIngredientsToShop([item])}
             />
           )}
         </div>
@@ -262,6 +314,14 @@ const App: React.FC = () => {
           <FridgeScanner 
             onClose={() => setIsScanning(false)} 
             onIngredientsDetected={handleScanComplete}
+          />
+        )}
+
+        {/* Voice Entry Modal */}
+        {isVoiceOpen && (
+          <VoiceEntry 
+            onClose={() => setIsVoiceOpen(false)}
+            onIngredientsDetected={handleVoiceComplete}
           />
         )}
         
@@ -278,12 +338,15 @@ const App: React.FC = () => {
            />
         )}
 
-        {/* Bottom Navigation */}
-        <Navbar 
-          currentView={currentView} 
-          onChange={setCurrentView} 
-          onScan={() => setIsScanning(true)} 
-        />
+        {/* Bottom Navigation - Hidden when Scanning */}
+        {!isScanning && (
+          <Navbar 
+            currentView={currentView} 
+            onChange={setCurrentView} 
+            onScan={() => setIsScanning(true)} 
+            onVoiceAdd={() => setIsVoiceOpen(true)}
+          />
+        )}
       </div>
     </div>
   );

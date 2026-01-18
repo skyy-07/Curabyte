@@ -23,11 +23,7 @@ export const MOCK_USER: UserProfile = {
   caloriesBurned: 450,
 };
 
-export const INITIAL_INVENTORY: Ingredient[] = [
-  { id: '1', name: 'Eggs', category: 'dairy', expiryEstimateDays: 5, confidence: 0.99 },
-  { id: '2', name: 'Spinach', category: 'produce', expiryEstimateDays: 2, confidence: 0.95 },
-  { id: '3', name: 'Greek Yogurt', category: 'dairy', expiryEstimateDays: 7, confidence: 0.92 },
-];
+export const INITIAL_INVENTORY: Ingredient[] = [];
 
 export const SYSTEM_INSTRUCTION_VISION = `
   You are an advanced AI vision system for a smart fridge. 
