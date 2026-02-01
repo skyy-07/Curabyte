@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   const env = loadEnv(mode, '.', '');
-  
+
   // Try to get the key from:
   // 1. System environment (Netlify settings)
   // 2. Local .env file (loaded into `env`)
